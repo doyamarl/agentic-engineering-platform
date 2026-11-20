@@ -1,0 +1,16 @@
+{
+  "name": "@aep/model-anthropic",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aep/application": "workspace:*",
+    "@anthropic-ai/sdk": "1.8.0"
+  },
+  "devDependencies": {
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.claude-working-memory/
+.next/
+next-env.d.ts
+.bench-out/
+# Playwright output (traces and page snapshots; may contain the test token).
+test-results/
+playwright-report/
+
+# Working drafts kept out of the public repository
+docs/drafts/

@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm depcruise
+      - run: pnpm test
+
+  compose-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: infra/compose/smoke.sh
+      - if: failure()
+        run: docker compose -f infra/compose/compose.yaml logs
+      - if: always()
+        run: docker compose -f infra/compose/compose.yaml down -v
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @aep/e2e exec playwright install --with-deps chromium
+      - run: infra/compose/e2e.sh
+      - if: failure()
+        run: docker compose -f infra/compose/compose.yaml -f infra/compose/compose.e2e.yaml logs
+      - if: always()
+        run: docker compose -f infra/compose/compose.yaml -f infra/compose/compose.e2e.yaml down -v

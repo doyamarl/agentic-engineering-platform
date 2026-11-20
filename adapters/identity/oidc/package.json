@@ -1,0 +1,18 @@
+{
+  "name": "@aep/identity-oidc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aep/application": "workspace:*",
+    "@aep/domain": "workspace:*",
+    "openid-client": "^6.9.0"
+  },
+  "devDependencies": {
+    "testcontainers": "^12.2.1",
+    "vitest": "^5.1.0"
+  }
+}

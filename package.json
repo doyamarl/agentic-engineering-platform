@@ -1,0 +1,30 @@
+{
+  "name": "agentic-engineering-platform",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.7 <25"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc -p tsconfig.json && pnpm --filter @aep/web typecheck",
+    "test": "vitest run",
+    "depcruise": "depcruise apps packages adapters --config .dependency-cruiser.cjs",
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm depcruise && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "dependency-cruiser": "^18.7.2",
+    "eslint": "^10.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0"
+  },
+  "packageManager": "pnpm@10.34.9"
+}

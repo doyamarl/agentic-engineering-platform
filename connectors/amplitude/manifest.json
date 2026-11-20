@@ -1,0 +1,40 @@
+{
+  "id": "amplitude",
+  "name": "Amplitude",
+  "description": "Read charts, funnels and the tracking plan of the Amplitude projects you can access. Read-only: tools that can also change Amplitude are not allowed.",
+  "servers": [
+    { "id": "us", "label": "US", "url": "https://mcp.amplitude.com/mcp" },
+    { "id": "eu", "label": "EU", "url": "https://mcp.eu.amplitude.com/mcp" }
+  ],
+  "auth": {
+    "type": "oauth2",
+    "registration": "dynamic",
+    "scopes": ["all:read", "offline_access"]
+  },
+  "tools": [
+    { "name": "get_amplitude_context", "class": "read" },
+    { "name": "search_amp_entities", "class": "read" },
+    { "name": "search_amp_data_taxonomy", "class": "read" },
+    { "name": "query_amplitude_data", "class": "read" },
+    { "name": "get_amplitude_charts", "class": "read" },
+    { "name": "get_from_url", "class": "read" }
+  ],
+  "egressHosts": ["mcp.amplitude.com", "mcp.eu.amplitude.com"],
+  "sources": [
+    {
+      "claim": "Endpoints: US https://mcp.amplitude.com/mcp, EU https://mcp.eu.amplitude.com/mcp; the URL must match the data region. Transport: Streamable HTTP. Authentication: OAuth 2.0.",
+      "url": "https://amplitude.com/docs/amplitude-ai/amplitude-mcp",
+      "checkedOn": "2026-11-15"
+    },
+    {
+      "claim": "Tools listed here only retrieve or query (their descriptions: search content, find taxonomy, run ad-hoc queries, retrieve chart definitions and data, retrieve the object behind a URL, return AI Context). Tools named use_* or manage_* can also change Amplitude and are left out (#52).",
+      "url": "https://amplitude.com/docs/amplitude-ai/amplitude-mcp",
+      "checkedOn": "2026-11-15"
+    },
+    {
+      "claim": "Dynamic client registration (registration_endpoint), PKCE S256, a revocation endpoint, and scopes all:read, all:write, offline_access.",
+      "url": "https://mcp.amplitude.com/.well-known/oauth-authorization-server",
+      "checkedOn": "2026-11-15"
+    }
+  ]
+}

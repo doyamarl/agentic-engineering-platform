@@ -1,0 +1,25 @@
+{
+  "id": "mock-amplitude",
+  "name": "Mock Amplitude",
+  "description": "The mock MCP server of the e2e stack (tools/mock-mcp). Not for real use.",
+  "servers": [{ "id": "local", "label": "Local", "url": "http://mock-mcp.localhost:8090/mcp" }],
+  "auth": {
+    "type": "oauth2",
+    "registration": "dynamic",
+    "scopes": ["all:read", "offline_access"]
+  },
+  "tools": [
+    { "name": "get_amplitude_context", "class": "read" },
+    { "name": "query_amplitude_data", "class": "read" },
+    { "name": "get_amplitude_charts", "class": "read" },
+    { "name": "manage_amp_entities", "class": "write" }
+  ],
+  "egressHosts": ["mock-mcp.localhost"],
+  "sources": [
+    {
+      "claim": "Tools and OAuth behaviour of the mock server, shaped like Amplitude's.",
+      "url": "https://github.com/doyamarl/agentic-engineering-platform/tree/main/tools/mock-mcp",
+      "checkedOn": "2026-11-16"
+    }
+  ]
+}

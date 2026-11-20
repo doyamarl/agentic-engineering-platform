@@ -1,0 +1,27 @@
+{
+  "name": "@aep/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/main.ts"
+  },
+  "dependencies": {
+    "@aep/agent-claude": "workspace:*",
+    "@aep/application": "workspace:*",
+    "@aep/connector-manifests": "workspace:*",
+    "@aep/connector-mcp": "workspace:*",
+    "@aep/git-github": "workspace:*",
+    "@aep/model-anthropic": "workspace:*",
+    "@aep/postgres": "workspace:*",
+    "@aep/sandbox-docker": "workspace:*",
+    "@aep/secrets-local": "workspace:*",
+    "kysely": "^0.29.9",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@aep/domain": "workspace:*",
+    "@types/pg": "^8.23.1",
+    "vitest": "^5.1.0"
+  }
+}

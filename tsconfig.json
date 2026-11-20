@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "apps/*/src/**/*.ts",
+    "packages/*/src/**/*.ts",
+    "adapters/*/*/src/**/*.ts",
+    "tools/*/src/**/*.ts",
+    "tools/*/*.config.ts",
+    "architecture/**/*.ts",
+    "*.config.ts",
+    "*.config.js"
+  ],
+  "exclude": ["architecture/fixtures/**"]
+}

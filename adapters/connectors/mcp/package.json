@@ -1,0 +1,19 @@
+{
+  "name": "@aep/connector-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@aep/application": "workspace:*",
+    "@aep/domain": "workspace:*",
+    "@modelcontextprotocol/client": "2.4.0"
+  },
+  "devDependencies": {
+    "@aep/mock-mcp": "workspace:*",
+    "@aep/secrets-local": "workspace:*",
+    "vitest": "^5.1.0"
+  }
+}

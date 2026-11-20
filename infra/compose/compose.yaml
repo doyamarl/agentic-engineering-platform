@@ -1,0 +1,101 @@
+# Local quickstart (assurance tier T0: trusted local operator, docs/02_ARCHITECTURE_ADR.md §7).
+# Not a secure multi-tenant deployment. Ports bind to 127.0.0.1 only; the database is not exposed.
+# Default passwords are for local use; override them in infra/compose/.env (see .env.example).
+name: aep
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+x-db-passwords: &db-passwords
+  AEP_OWNER_DB_PASSWORD: ${AEP_OWNER_DB_PASSWORD:-aep-owner-local}
+  AEP_APP_DB_PASSWORD: ${AEP_APP_DB_PASSWORD:-aep-app-local}
+
+services:
+  db:
+    build: { context: ../.., target: db }
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres-local}
+      POSTGRES_DB: aep
+      <<: *db-passwords
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "aep"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *hardening
+    build: { context: ../.., target: api }
+    command: ["node", "apps/api/src/cli/migrate.ts"]
+    environment:
+      DATABASE_URL: postgres://aep_owner:${AEP_OWNER_DB_PASSWORD:-aep-owner-local}@db:5432/aep
+      APP_DB_ROLE: aep_app
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    <<: *hardening
+    build: { context: ../.., target: api }
+    environment:
+      DATABASE_URL: postgres://aep_app:${AEP_APP_DB_PASSWORD:-aep-app-local}@db:5432/aep
+      # Password login for people (ADR-011); API tokens keep working for scripts.
+      AEP_AUTH_METHODS: password
+      AEP_ACCESS_TOKEN_SECRET_FILE: /run/secrets/access_token_secret
+    secrets: [access_token_secret]
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  worker:
+    <<: *hardening
+    build: { context: ../.., target: worker }
+    environment:
+      DATABASE_URL: postgres://aep_app:${AEP_APP_DB_PASSWORD:-aep-app-local}@db:5432/aep
+      # Thread replies (ADR-012). Without a key they stay off; `fake` echoes, for local demos.
+      AEP_MODEL_PROVIDER: ${AEP_MODEL_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AEP_CHAT_MODEL: ${AEP_CHAT_MODEL:-claude-sonnet-5-5}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  web:
+    <<: *hardening
+    build: { context: ../.., target: web }
+    environment:
+      API_BASE_URL: http://api:3000
+      # Inside the container; the published port stays on 127.0.0.1.
+      HOST: 0.0.0.0
+      # Plain HTTP on 127.0.0.1, so the session cookies cannot be Secure here. Behind TLS, drop this.
+      AEP_SECURE_COOKIES: "false"
+    ports: ["127.0.0.1:3001:3001"]
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  pgdata:
+
+secrets:
+  # Signs access tokens; at least 32 bytes. Set it in infra/compose/.env, e.g.
+  # echo "AEP_ACCESS_TOKEN_SECRET=$(openssl rand -base64 48)" >> infra/compose/.env
+  access_token_secret:
+    environment: AEP_ACCESS_TOKEN_SECRET

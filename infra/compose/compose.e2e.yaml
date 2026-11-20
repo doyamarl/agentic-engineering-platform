@@ -1,0 +1,65 @@
+# Browser tests only (infra/compose/e2e.sh): an OIDC provider for the login tests, the API set
+# to offer it next to passwords (ADR-011), and the worker replying with the fake model, slowly
+# enough that a reply is seen arriving in pieces. Not part of the quickstart. The provider is
+# navikt/mock-oauth2-server (MIT); its login form takes the subject and the claims to issue.
+# The browser reaches it as "oidc" too (Playwright maps that name to 127.0.0.1), so the issuer
+# the API discovers and the one the browser visits are the same URL.
+# Connectors (compose.connectors.yaml, also added by e2e.sh) point at the mock MCP server
+# (tools/mock-mcp) instead of real providers, as "mock-mcp.localhost": the MCP SDK sends tokens over
+# plain HTTP only to a loopback name, and the browser resolves *.localhost to 127.0.0.1 by itself.
+# Inside the stack the name is a network alias of the mock.
+x-mock-connectors: &mock-connectors
+  AEP_CONNECTORS_DIR: /repo/tools/mock-mcp/connectors
+  AEP_CONNECTORS_ALLOW_HTTP: "true"
+
+services:
+  mock-mcp:
+    build: { context: ../.., target: mock-mcp }
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      MOCK_MCP_PORT: "8090"
+      MOCK_MCP_PUBLIC_URL: http://mock-mcp.localhost:8090
+    ports: ["127.0.0.1:8090:8090"]
+    networks:
+      default:
+        aliases: [mock-mcp.localhost]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:6.1.5@sha256:d88e445d55c4ff6eed59b02d86adfece47d985233b1616fb712669b98328c8a2
+    environment:
+      SERVER_PORT: "18080"
+      JSON_CONFIG: '{"interactiveLogin":true}'
+    ports: ["127.0.0.1:18080:18080"]
+
+  api:
+    environment:
+      AEP_AUTH_METHODS: password,oidc
+      AEP_OIDC_ISSUER: http://oidc:18080/default
+      AEP_OIDC_CLIENT_ID: aep-e2e
+      AEP_OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+      AEP_OIDC_REDIRECT_URI: http://127.0.0.1:3001/login/oidc/callback
+      AEP_OIDC_NAME: E2E SSO
+      AEP_OIDC_ALLOW_HTTP: "true"
+      <<: *mock-connectors
+    secrets: [access_token_secret, oidc_client_secret]
+    depends_on:
+      oidc: { condition: service_started }
+      mock-mcp: { condition: service_healthy }
+
+  worker:
+    environment:
+      AEP_MODEL_PROVIDER: fake
+      AEP_FAKE_MODEL_DELAY_MS: "150"
+      <<: *mock-connectors
+    depends_on:
+      mock-mcp: { condition: service_healthy }
+
+secrets:
+  oidc_client_secret:
+    environment: AEP_E2E_OIDC_CLIENT_SECRET
