@@ -1,71 +1,133 @@
 # Agentic Software Engineering Platform
 
-セルフホスト前提・エージェント非依存のソフトウェアデリバリー基盤。現在は Sprint 1（基盤）の実装段階で、テナントスコープの Mission を API で作成・取得できる。エージェント実行・承認フロー・UI はまだない（[ロードマップ](docs/03_ROADMAP.md)）。
+A self-hosted, agent-agnostic software delivery platform. A person shapes an initiative with an AI in a chat thread, turns it into a GitHub Issue, and a coding agent implements it as a reviewed PR.
 
-## ドキュメント
+Status: Sprints 1–4 (missions, approvals, accounts and login) are done; the chat and connector work of PRD v0.2 is in progress. See the [roadmap](docs/03_ROADMAP.md).
 
-- [docs/01_PRD.md](docs/01_PRD.md) — プロダクト要求(ビジョン、KPI、ペルソナ、リリースごとのスコープ)
-- [docs/02_ARCHITECTURE_ADR.md](docs/02_ARCHITECTURE_ADR.md) — アーキテクチャ方針と技術選定(ADR)
-- [docs/03_ROADMAP.md](docs/03_ROADMAP.md) — MVP から OSS v1.0 までのロードマップ
-- [docs/04_AGENT_BENCHMARK.md](docs/04_AGENT_BENCHMARK.md) — 最初のエージェントアダプタ（Claude）の可否判定ベンチマーク手順
+## Documentation
 
-## クイックスタート（Docker Compose）
+| Document                                              | Contents                                                |
+| ----------------------------------------------------- | ------------------------------------------------------- |
+| [01_PRD.md](docs/01_PRD.md)                           | Vision, KPIs, personas, scope per release               |
+| [02_ARCHITECTURE_ADR.md](docs/02_ARCHITECTURE_ADR.md) | Architecture and technology decisions (ADRs)            |
+| [03_ROADMAP.md](docs/03_ROADMAP.md)                   | Plan from MVP to OSS v1.0                               |
+| [04_AGENT_BENCHMARK.md](docs/04_AGENT_BENCHMARK.md)   | Go/no-go benchmark for the first agent adapter (Claude) |
 
-必要なもの: Docker と Docker Compose v2。ローカルの信頼できる利用者向け（ADR §7 の T0）の構成で、公開ポートは `127.0.0.1` にしか開かない。
+## Quick start (Docker Compose)
+
+Requires Docker and Docker Compose v2. This setup is for trusted local users (T0 in ADR §7) and binds ports to `127.0.0.1` only.
 
 ```bash
-# アクセストークンの署名鍵（32 バイト以上）。初回だけ
+# Access-token signing key (at least 32 bytes). First run only.
 echo "AEP_ACCESS_TOKEN_SECRET=$(openssl rand -base64 48)" >> infra/compose/.env
 
 docker compose -f infra/compose/compose.yaml up -d --build --wait
 
-# テナント・workspace・admin を作成し、admin の API トークンと初期パスワードを1回だけ表示する
+# Create a tenant, workspace and admin. Prints the admin's API token and initial password once.
 docker compose -f infra/compose/compose.yaml run --rm migrate \
   node apps/api/src/cli/bootstrap.ts --tenant Demo --workspace Growth --admin Operator \
   --email admin@example.com
 ```
 
-Web の画面（http://127.0.0.1:3001）を開くとログイン画面になる。bootstrap の出力の `email` と `initialPassword` でログインし、最初にパスワードを変える。画面では、ミッションの一覧と作成（GitHub の Issue を指定）、詳細（状態、計画、承認・差し戻し、数秒ごとに更新されるイベント、受け入れ用のまとめ、キャンセル）を扱える。ロールで使えない操作のボタンは出ない。計画と実行には worker の設定（`apps/worker/src/execution.ts` の環境変数）が要る。作成画面では、テナントの Workspace を一覧から選ぶ。
+Open http://127.0.0.1:3001 and log in with the `email` and `initialPassword` from the bootstrap output. You are asked to change the password first.
 
-API はスクリプトから API トークンでも使える。
+| Service | URL                   | Purpose                                                       |
+| ------- | --------------------- | ------------------------------------------------------------- |
+| api     | http://127.0.0.1:3000 | REST API under `/v1`, `/healthz`                              |
+| web     | http://127.0.0.1:3001 | Web UI                                                        |
+| worker  | not exposed           | Mission planning and execution, chat replies, connector calls |
+
+To change the local database passwords, copy `infra/compose/.env.example` to `infra/compose/.env` and edit it.
+
+### Using the API
+
+Scripts can call the API with the token from the bootstrap output:
 
 ```bash
-TOKEN=aep_...        # 上の出力の token
-WORKSPACE=...        # 上の出力の workspaceId
+TOKEN=aep_...        # token from the bootstrap output
+WORKSPACE=...        # workspaceId from the bootstrap output
 curl -s -X POST http://127.0.0.1:3000/v1/missions \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
   -d "{\"workspaceId\":\"$WORKSPACE\",\"title\":\"Improve signup conversion\"}"
 curl -s http://127.0.0.1:3000/v1/missions -H "authorization: Bearer $TOKEN"
 ```
 
-パスワードでのログイン（ADR-011）は、API に `AEP_AUTH_METHODS=password` と `AEP_ACCESS_TOKEN_SECRET_FILE`（署名鍵のファイル）を渡すと有効になる。Compose の構成では有効にしてあり、鍵は `.env` の `AEP_ACCESS_TOKEN_SECRET` から渡す。admin は Web の「メンバー」（`/admin/members`）か API の `/v1/members` で、メンバーの登録（初期パスワードが 1 回だけ表示される）、ロールの変更、無効化、パスワードの再発行ができる。これらの変更とログインの結果は、Web の監査ログ（`/admin/audit`）か `/v1/audit-events` で見られる。会社の IdP でのログイン（OIDC）は、`AEP_AUTH_METHODS` に `oidc` を加え、`AEP_OIDC_ISSUER`、`AEP_OIDC_CLIENT_ID`、`AEP_OIDC_CLIENT_SECRET_FILE`、`AEP_OIDC_REDIRECT_URI`（Web の `/login/oidc/callback`。IdP にも同じ値を登録する）、表示名の `AEP_OIDC_NAME` を渡すと有効になる。ログインできるのは admin が登録したメンバーだけで、IdP が `email_verified: true` を返したメールアドレスで照合する。Web はセッションを HttpOnly の Cookie に持つ。Compose は `127.0.0.1` の平文 HTTP なので `AEP_SECURE_COOKIES=false` にしている。TLS の後ろで動かすときは外す。
+## Features and configuration
 
-外部ツールへの接続（コネクタ、ADR-013）は既定ではオフ。オンにするには `infra/compose/.env` に `COMPOSE_FILE=compose.yaml:compose.connectors.yaml` と `AEP_MASTER_KEY`（`openssl rand -base64 32` の出力）を書く。トークンは worker がこの鍵で暗号化して DB に保管する。鍵をなくすと、全員の接続をやり直すことになる。DB のバックアップとは別の場所に控えておく。各メンバーは Web の「接続」（`/connections`）から自分のアカウントで接続し、admin は「メンバーの接続」（`/admin/connections`）で接続の状態を見て、強制的に切断できる。リダイレクト URI は既定で `http://127.0.0.1:3001/connections/oauth/callback`。別のアドレスで公開するときは `AEP_CONNECTOR_REDIRECT_URI` で変える。
+### Missions
 
-| サービス | URL                   | 内容                                                 |
-| -------- | --------------------- | ---------------------------------------------------- |
-| api      | http://127.0.0.1:3000 | `/healthz`、`/v1/missions`                           |
-| web      | http://127.0.0.1:3001 | ログイン、ミッションの一覧・作成・詳細               |
-| worker   | （公開なし）          | DB 疎通のヘルスチェックのみ（ジョブ処理は Sprint 2） |
+A mission is created from a GitHub Issue in a workspace. Its detail page shows the state, the plan, approve/reject actions, an event feed that refreshes every few seconds, the acceptance summary and a cancel action. Buttons for actions the user's role does not allow are hidden.
 
-ブラウザのテスト（Playwright、`tools/e2e`）は `infra/compose/e2e.sh` で実行する。スタックを起動し、テナント A・B のアカウント（A と B の admin、A の viewer と engineer、初期パスワードのままの A のメンバー）と A のミッションを用意して、Web にログインしながら、画面の通しの操作、ログインまわり（初回のパスワード変更、ログアウト、ロールによるボタンの出し分け）、偽の MCP サーバー（`tools/mock-mcp`）への接続と切断、セキュリティの回帰テスト（テナント分離、HTML の注入、リンクのスキーム、フレームへの埋め込み、別サイトからのフォーム送信、Cookie とトークンの露出）を流す（CI でも実行）。初回は `pnpm --filter @aep/e2e exec playwright install chromium` でブラウザを取得する。
+Planning and execution need the worker's agent settings. The variables are read in `apps/worker/src/execution.ts`: `AEP_GITHUB_APP_ID`, `AEP_GITHUB_PRIVATE_KEY_PATH`, `AEP_CLAUDE_MODEL`, `AEP_SANDBOX_IMAGE`, `AEP_WORK_ROOT`, and budget, time and network limits (`AEP_AGENT_*`, `AEP_VERIFY_*`).
 
-DB のパスワードはローカル用の既定値が入っている。変える場合は `infra/compose/.env.example` を `infra/compose/.env` にコピーして編集する。`infra/compose/smoke.sh` は起動からテナント分離の確認までを通しで実行する（CI でも実行）。
+### Chat threads
 
-## 開発環境
+The worker answers thread messages with `AEP_CHAT_MODEL` when `ANTHROPIC_API_KEY` is set in `infra/compose/.env`. Without a key, replies stay off. `AEP_MODEL_PROVIDER=fake` echoes each message back, for demos without a key.
 
-Node と pnpm のバージョンは [mise](https://mise.jdx.dev/) で `mise.toml` に固定している（Node 24 / pnpm 10）。
+### Accounts and login (ADR-011)
+
+Password login is on when the API gets `AEP_AUTH_METHODS=password` and `AEP_ACCESS_TOKEN_SECRET_FILE`. Compose turns it on and passes the key from `AEP_ACCESS_TOKEN_SECRET` in `.env`.
+
+Admins manage members in the web UI (`/admin/members`) or via `/v1/members`: add a member (the initial password is shown once), change roles, deactivate, and reissue passwords. These changes and login results appear in the audit log (`/admin/audit`, `/v1/audit-events`).
+
+To log in through a company IdP (OIDC), add `oidc` to `AEP_AUTH_METHODS` and set:
+
+| Variable                      | Value                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `AEP_OIDC_ISSUER`             | Issuer URL                                                               |
+| `AEP_OIDC_CLIENT_ID`          | Client ID                                                                |
+| `AEP_OIDC_CLIENT_SECRET_FILE` | Path to the client secret                                                |
+| `AEP_OIDC_REDIRECT_URI`       | The web app's `/login/oidc/callback`; register the same value at the IdP |
+| `AEP_OIDC_NAME`               | Display name on the login page                                           |
+
+Only members an admin has added can log in. They are matched by an email address the IdP returns with `email_verified: true`.
+
+The web app keeps the session in an HttpOnly cookie. Compose serves plain HTTP on `127.0.0.1`, so it sets `AEP_SECURE_COOKIES=false`. Remove that setting when running behind TLS.
+
+### Connectors (ADR-013)
+
+Connectors to external tools are off by default. To turn them on, add to `infra/compose/.env`:
+
+```bash
+COMPOSE_FILE=compose.yaml:compose.connectors.yaml
+AEP_MASTER_KEY=...   # output of: openssl rand -base64 32
+```
+
+The worker encrypts connection tokens with `AEP_MASTER_KEY` before storing them in the database. If the key is lost, every member has to reconnect, so keep a copy somewhere other than the database backups.
+
+Each member connects their own account under `/connections`. Admins see connection status and can force a disconnect under `/admin/connections`. The default redirect URI is `http://127.0.0.1:3001/connections/oauth/callback`; set `AEP_CONNECTOR_REDIRECT_URI` when serving from another address.
+
+## Testing
+
+| Command                  | What it runs                                                             |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `pnpm verify`            | Format, lint, typecheck, dependency-boundary check, unit tests           |
+| `infra/compose/smoke.sh` | Starts the stack and checks it end to end, through tenant isolation (CI) |
+| `infra/compose/e2e.sh`   | Playwright browser tests in `tools/e2e` (CI)                             |
+
+`e2e.sh` starts the stack, seeds tenants A and B (admins for both; a viewer, an engineer and a member still on the initial password for A) and a mission in A, then covers:
+
+- the main UI flows
+- login: first password change, logout, role-based buttons
+- connecting to and disconnecting from a mock MCP server (`tools/mock-mcp`)
+- security regressions: tenant isolation, HTML injection, link schemes, framing, cross-site form posts, cookie and token exposure
+
+Before the first run, install the browser with `pnpm --filter @aep/e2e exec playwright install chromium`.
+
+## Development
+
+Node 24 and pnpm 10 are pinned in `mise.toml` and installed with [mise](https://mise.jdx.dev/).
 
 ```bash
 mise install
 pnpm install
-pnpm verify   # format / lint / typecheck / 依存境界チェック / テスト
+pnpm verify
 ```
 
-`adapters/persistence/postgres` のテストは Testcontainers で PostgreSQL 18 を起動するため、Docker が必要。
+The tests in `adapters/persistence/postgres` start PostgreSQL 18 with Testcontainers, so they need Docker.
 
-モジュール境界のルールは `.dependency-cruiser.cjs` にあり、`architecture/dependency-rules.test.ts` が各ルールの違反 fixture を検出できることを確認している。
+Module boundary rules live in `.dependency-cruiser.cjs`. `architecture/dependency-rules.test.ts` checks that each rule catches a violating fixture.
 
-## ライセンス
+## License
 
 [Apache License 2.0](LICENSE)
